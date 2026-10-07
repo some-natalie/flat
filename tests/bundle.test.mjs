@@ -4,7 +4,7 @@ import { cpSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import path from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tempDirectory } from '../lib/test-utils.js'
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url))
@@ -45,7 +45,7 @@ syncBuiltinESMExports()
 function fixture(t) {
   const directory = tempDirectory(t)
   cpSync(dist, path.join(directory, 'dist'), { recursive: true })
-  const preload = path.join(directory, 'git-stub.mjs')
+  const preload = path.join(directory, 'git stub #1.mjs')
   writeFileSync(preload, gitStub)
   writeFileSync(path.join(directory, 'github-env'), '')
   writeFileSync(path.join(directory, 'github-output'), '')
@@ -67,7 +67,11 @@ async function runAction(fixture, inputs, entry = 'index.js') {
   }
   const child = spawn(
     process.execPath,
-    ['--import', fixture.preload, path.join(fixture.directory, 'dist', entry)],
+    [
+      '--import',
+      pathToFileURL(fixture.preload).href,
+      path.join(fixture.directory, 'dist', entry),
+    ],
     {
       cwd: fixture.directory,
       env,

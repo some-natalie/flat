@@ -35,8 +35,8 @@ async function getHeadSize(path: string): Promise<number | undefined> {
   let raw = ''
   const exitcode = await exec('git', ['cat-file', '-s', `HEAD:${path}`], {
     listeners: {
-      stdline: (data: string) => {
-        raw += data
+      stdout: (data: Buffer) => {
+        raw += data.toString()
       },
     },
   })

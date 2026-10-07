@@ -1,92 +1,12 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { cpSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import path from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { tempDirectory } from '../lib/test-utils.js'
+import { fileURLToPath } from 'node:url'
+import { fixture, runAction } from './action-fixture.mjs'
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url))
-const gitStub = `
-import childProcess from 'node:child_process'
-import { EventEmitter } from 'node:events'
-import { syncBuiltinESMExports } from 'node:module'
-import { PassThrough } from 'node:stream'
-
-// Never change Git identity, stage files, commit, or push during smoke tests.
-childProcess.spawn = (command, args) => {
-  if (!/git(?:\\.exe)?$/i.test(command) ||
-      args[0] !== 'config' ||
-      !['user.name', 'user.email'].includes(args[1])) {
-    throw new Error('Unexpected subprocess: ' + command + ' ' + args.join(' '))
-  }
-  const child = new EventEmitter()
-  child.stdout = new PassThrough()
-  child.stderr = new PassThrough()
-  child.stdin = new PassThrough()
-  process.nextTick(() => {
-    child.stdout.end()
-    child.stderr.end()
-    child.emit('exit', 0)
-    child.emit('close', 0)
-  })
-  return child
-}
-childProcess.execSync = command => {
-  if (!['git ls-files --others --exclude-standard', 'git ls-files -m'].includes(command)) {
-    throw new Error('Unexpected shell command: ' + command)
-  }
-  return Buffer.from('')
-}
-syncBuiltinESMExports()
-`
-
-function fixture(t) {
-  const directory = tempDirectory(t)
-  cpSync(dist, path.join(directory, 'dist'), { recursive: true })
-  const preload = path.join(directory, 'git stub #1.mjs')
-  writeFileSync(preload, gitStub)
-  writeFileSync(path.join(directory, 'github-env'), '')
-  writeFileSync(path.join(directory, 'github-output'), '')
-  return { directory, preload }
-}
-
-async function runAction(fixture, inputs, entry = 'index.js') {
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !key.startsWith('INPUT_')),
-  )
-  Object.assign(env, {
-    FILES: '[]',
-    HAS_RUN_POST_JOB: '',
-    GITHUB_ENV: path.join(fixture.directory, 'github-env'),
-    GITHUB_OUTPUT: path.join(fixture.directory, 'github-output'),
-  })
-  for (const [key, value] of Object.entries(inputs)) {
-    env[`INPUT_${key.toUpperCase()}`] = value
-  }
-  const child = spawn(
-    process.execPath,
-    [
-      '--import',
-      pathToFileURL(fixture.preload).href,
-      path.join(fixture.directory, 'dist', entry),
-    ],
-    {
-      cwd: fixture.directory,
-      env,
-      timeout: 15000,
-    },
-  )
-  let output = ''
-  child.stdout.on('data', chunk => (output += chunk))
-  child.stderr.on('data', chunk => (output += chunk))
-  return new Promise((resolve, reject) => {
-    child.on('error', reject)
-    child.on('close', code => resolve({ code, output }))
-  })
-}
-
 test('packaged HTTP action runs without node_modules', async t => {
   const server = createServer((_request, response) =>
     response.end('{"bundled":true}'),

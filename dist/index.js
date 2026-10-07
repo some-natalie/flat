@@ -248166,8 +248166,8 @@ async function getHeadSize(path) {
     let raw = '';
     const exitcode = await exec_exec('git', ['cat-file', '-s', `HEAD:${path}`], {
         listeners: {
-            stdline: (data) => {
-                raw += data;
+            stdout: (data) => {
+                raw += data.toString();
             },
         },
     });

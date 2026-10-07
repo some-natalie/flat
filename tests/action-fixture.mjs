@@ -44,7 +44,7 @@ childProcess.spawn = (command, args) => {
   } else if (args[0] === 'cat-file' && args[1] === '-s') {
     const name = args[2].slice('HEAD:'.length)
     if (!(name in state.tracked)) throw new Error('No baseline for ' + name)
-    output = Buffer.from(state.tracked[name], 'base64').length + '\\n'
+    output = Buffer.from(state.tracked[name], 'base64').length + state.headSizeEOL
   } else if (args[0] === 'commit' && args[1] === '-m' && state.staged.length) {
     if (state.failure === 'commit') {
       code = 1
@@ -87,7 +87,10 @@ childProcess.execSync = command => {
 syncBuiltinESMExports()
 `
 
-export function fixture(t, { outputs = [], tracked = {}, failure } = {}) {
+export function fixture(
+  t,
+  { outputs = [], tracked = {}, failure, headSizeEOL = '\n' } = {},
+) {
   const directory = tempDirectory(t)
   cpSync(dist, path.join(directory, 'dist'), { recursive: true })
   const preload = path.join(directory, 'git stub #1.mjs')
@@ -101,7 +104,13 @@ export function fixture(t, { outputs = [], tracked = {}, failure } = {}) {
   writeFileSync(preload, gitStub)
   writeFileSync(
     state,
-    JSON.stringify({ outputs, tracked: baseline, staged: [], failure }),
+    JSON.stringify({
+      outputs,
+      tracked: baseline,
+      staged: [],
+      failure,
+      headSizeEOL,
+    }),
   )
   writeFileSync(calls, '')
   writeFileSync(path.join(directory, 'github-env'), '')

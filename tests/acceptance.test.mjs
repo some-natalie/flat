@@ -89,33 +89,40 @@ test('identical fetched data does not stage, commit, or push', async t => {
   assert.equal(gitCalls(files).filter(args => args[0] === 'add').length, 0)
 })
 
-test('changed tracked data exports its size delta and preserves prior step metadata', async t => {
-  const before = '{"old":true}'
-  const after = '{"updated":"longer value"}'
-  const url = await serve(t, (_request, response) => response.end(after))
-  const files = fixture(t, {
-    outputs: ['data.json'],
-    tracked: { 'data.json': before },
+for (const [label, headSizeEOL] of [
+  ['LF', '\n'],
+  ['CRLF', '\r\n'],
+  ['no newline', ''],
+]) {
+  test(`changed tracked data exports its size delta with ${label} Git output`, async t => {
+    const before = '{"old":true}'
+    const after = '{"updated":"longer value"}'
+    const url = await serve(t, (_request, response) => response.end(after))
+    const files = fixture(t, {
+      outputs: ['data.json'],
+      tracked: { 'data.json': before },
+      headSizeEOL,
+    })
+    const previous = [{ name: 'earlier.csv', deltaBytes: 4 }]
+    const main = await runAction(
+      files,
+      {
+        http_url: url,
+        downloaded_filename: 'data.json',
+      },
+      'index.js',
+      { FILES: JSON.stringify(previous) },
+    )
+    assert.deepEqual(filesChanged(main), [
+      ...previous,
+      {
+        name: 'data.json',
+        deltaBytes: Buffer.byteLength(after) - Buffer.byteLength(before),
+        source: url,
+      },
+    ])
   })
-  const previous = [{ name: 'earlier.csv', deltaBytes: 4 }]
-  const main = await runAction(
-    files,
-    {
-      http_url: url,
-      downloaded_filename: 'data.json',
-    },
-    'index.js',
-    { FILES: JSON.stringify(previous) },
-  )
-  assert.deepEqual(filesChanged(main), [
-    ...previous,
-    {
-      name: 'data.json',
-      deltaBytes: Buffer.byteLength(after) - Buffer.byteLength(before),
-      source: url,
-    },
-  ])
-})
+}
 
 for (const [mask, expectedSource] of [
   ['true', undefined],

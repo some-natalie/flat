@@ -236,7 +236,8 @@ The learn more about the possibilities for postprocessing check out our [helper 
 
 ## Building / Releasing
 
-Use the Node.js version in `.node-version` (also configured for Volta), then run:
+Use the Node.js version in `.node-version` (also configured for Volta) and install
+Deno 2 for the acceptance tests, then run:
 
 ```sh
 npm ci
@@ -245,12 +246,20 @@ npm run format:check
 npm test
 npm run dist
 npm run test:bundle
+npm run test:acceptance
 ```
 
 Tests use Node.js's built-in test runner and cover configuration, HTTP downloads,
 SQLite queries, and Deno invocation. Bundle smoke tests run the generated action
 without `node_modules` and without committing or pushing. CI runs these checks
 and builds the action on Linux, macOS, and Windows.
+
+Acceptance tests require Deno 2 and run on every pull request as well as pushes,
+on all three platforms. They exercise the packaged main and post actions with
+local HTTP/SQLite fixtures, real Deno postprocessing, and simulated Git
+operations. They cover change metadata, masking, unchanged data, commit/push
+ordering, duplicate post-job prevention, and failure handling. They never
+change Git identity or publish data.
 
 Tedious's vulnerable `sprintf-js` dependency is replaced by a bounded diagnostic
 formatter in `vendor/tedious-formatter`, using a scoped npm override. The tests

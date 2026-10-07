@@ -13,6 +13,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"scripts/*.mjs\" \"tests/*.mjs\" \"vendor/**/*.cjs\"",
     "test": "npm run build && node --test lib/*.test.js lib/backends/*.test.js vendor/**/*.test.cjs",
     "test:bundle": "node --test tests/bundle.test.mjs",
+    "test:acceptance": "node --test tests/acceptance.test.mjs",
     "prepare": "husky"
   },
   "repository": {

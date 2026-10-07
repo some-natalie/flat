@@ -17,7 +17,7 @@ const HTTPConfigSchema = z
     authorization: z.string().optional(),
     mask: z.string().optional(), // string array of secrets or boolean
   })
-  .merge(CommonConfigSchema)
+  .extend(CommonConfigSchema.shape)
 export type HTTPConfig = z.infer<typeof HTTPConfigSchema>
 
 const SQLConfigSchema = z
@@ -26,7 +26,7 @@ const SQLConfigSchema = z
     sql_queryfile: z.string(),
     typeorm_config: z.string().optional(),
   })
-  .merge(CommonConfigSchema)
+  .extend(CommonConfigSchema.shape)
 export type SQLConfig = z.infer<typeof SQLConfigSchema>
 
 const ConfigSchema = z.union([HTTPConfigSchema, SQLConfigSchema])
@@ -59,14 +59,14 @@ export function getConfig(): Config {
       return SQLConfigSchema.parse(raw)
     } else {
       throw new Error(
-        'One of `http_url` or `sql_connstring` inputs are required.'
+        'One of `http_url` or `sql_connstring` inputs are required.',
       )
     }
   } catch (error) {
     throw new Error(
       `Invalid configuration!\nReceived: ${JSON.stringify(raw)}\nFailure:${
-        error.message
-      }`
+        error instanceof Error ? error.message : String(error)
+      }`,
     )
   }
 }

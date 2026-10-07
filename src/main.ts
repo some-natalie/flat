@@ -1,10 +1,11 @@
 import * as core from '@actions/core'
 import { exec } from '@actions/exec'
 import { execSync } from 'child_process'
-import fetchHTTP from './backends/http'
-import fetchSQL from './backends/sql'
-import { getConfig, isHTTPConfig, isSQLConfig } from './config'
-import { diff } from './git'
+import fetchHTTP from './backends/http.js'
+import fetchSQL from './backends/sql.js'
+import { getConfig, isHTTPConfig, isSQLConfig } from './config.js'
+import { diff } from './git.js'
+import { postprocess } from './postprocess.js'
 
 async function run(): Promise<void> {
   core.info('[INFO] Usage https://github.com/githubocto/flat#readme')
@@ -43,7 +44,7 @@ async function run(): Promise<void> {
           })
         } catch (error) {
           core.setFailed(
-            'Mask param formatted incorrectly. It should be a string array OR a "true" or "false" string.'
+            'Mask param formatted incorrectly. It should be a string array OR a "true" or "false" string.',
           )
         }
       }
@@ -63,14 +64,12 @@ async function run(): Promise<void> {
     core.startGroup('Postprocess')
     core.debug(`Invoking ${config.postprocess} with ${filename}...`)
     try {
-      const raw = execSync(
-        `NO_COLOR=true deno run -q --allow-read --allow-write --allow-run --allow-net --allow-env --unstable ${config.postprocess} ${filename}`
-      ).toString()
+      const raw = postprocess(config.postprocess, filename)
 
       core.info('Deno output:')
       core.info(raw)
     } catch (error) {
-      core.setFailed(error)
+      core.setFailed(error instanceof Error ? error : String(error))
     }
     core.endGroup()
   }
@@ -78,7 +77,7 @@ async function run(): Promise<void> {
   core.startGroup('File changes')
 
   const newUnstagedFiles = await execSync(
-    'git ls-files --others --exclude-standard'
+    'git ls-files --others --exclude-standard',
   ).toString()
   const modifiedUnstagedFiles = await execSync('git ls-files -m').toString()
   const editedFilenames = [

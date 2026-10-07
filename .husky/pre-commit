@@ -1,5 +1,1 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
-npm run dist
-git add dist/*
+npm run format:check && npm test && npm run dist && npm run test:bundle && git add dist

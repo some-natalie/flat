@@ -1,5 +1,3 @@
-.github/workflows
-
 # Logs
 logs
 *.log
@@ -78,4 +76,4 @@ lib/*
 .DS_Store
 
 #husky
-.husky/.gitignore
+.husky/_

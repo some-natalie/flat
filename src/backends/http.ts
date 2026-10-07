@@ -1,7 +1,8 @@
 import * as core from '@actions/core'
-import { HTTPConfig } from '../config'
+import { HTTPConfig } from '../config.js'
 import fs from 'fs'
 import axios, { AxiosResponse } from 'axios'
+import { pipeline } from 'stream/promises'
 
 export default async function fetchHTTP(config: HTTPConfig): Promise<string> {
   core.info('Fetching: HTTP')
@@ -25,6 +26,7 @@ export default async function fetchHTTP(config: HTTPConfig): Promise<string> {
       const combinedWithOtherConfigValues = {
         ...parsed,
         url: config.http_url,
+        baseURL: undefined,
         headers: {
           ...parsed.headers,
           ...authHeader,
@@ -45,14 +47,10 @@ export default async function fetchHTTP(config: HTTPConfig): Promise<string> {
     const filename = config.downloaded_filename
     const writer = fs.createWriteStream(filename)
 
-    response.data.pipe(writer)
-    await new Promise((resolve, reject) => {
-      writer.on('finish', resolve)
-      writer.on('error', reject)
-    })
+    await pipeline(response.data, writer)
     return filename
   } catch (error) {
-    core.setFailed(error)
+    core.setFailed(error instanceof Error ? error : String(error))
     throw error
   }
 }

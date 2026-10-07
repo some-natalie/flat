@@ -1,138 +1,90 @@
-import {
-  Config,
-  getConfig,
-  HTTPConfig,
-  isHTTPConfig,
-  isSQLConfig,
-} from './config'
-import * as core from '@actions/core'
-jest.mock('@actions/core')
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { getConfig, isHTTPConfig, isSQLConfig } from './config.js'
+import { setInputs } from './test-utils.js'
 
-it('returns an HTTP config', () => {
-  const config = {
-    http_url: 'https://google.com',
-    outfile_basename: 'data',
+test('returns an HTTP config and ignores SQL inputs', t => {
+  setInputs(t, {
+    http_url: 'https://example.com/data',
+    downloaded_filename: 'data.json',
     sql_queryfile: 'query.sql',
-    sql_format: 'json',
-  }
-  const coreMock = jest.spyOn(core, 'getInput')
-  // @ts-ignore
-  coreMock.mockImplementation(k => config[k])
-  expect(getConfig()).toEqual({
-    http_url: 'https://google.com',
-    outfile_basename: 'data',
+  })
+  assert.deepEqual(getConfig(), {
+    http_url: 'https://example.com/data',
+    downloaded_filename: 'data.json',
   })
 })
 
-it('returns a SQL config', () => {
+test('returns a SQL config', t => {
   const config = {
-    sql_connstring: 'SECRETDATAHERE',
-    outfile_basename: 'data',
+    sql_connstring: 'postgres://localhost/test',
+    downloaded_filename: 'data.csv',
     sql_queryfile: 'query.sql',
-    sql_format: 'json',
+    typeorm_config: '{"ssl":true}',
   }
-  const coreMock = jest.spyOn(core, 'getInput')
-  // @ts-ignore
-  coreMock.mockImplementation(k => config[k])
-  expect(getConfig()).toEqual({
-    sql_connstring: 'SECRETDATAHERE',
-    outfile_basename: 'data',
-    sql_queryfile: 'query.sql',
-    sql_format: 'json',
+  setInputs(t, config)
+  assert.deepEqual(getConfig(), config)
+})
+
+test('requires a downloaded filename in HTTP mode', t => {
+  setInputs(t, { http_url: 'https://example.com/data' })
+  assert.throws(getConfig, /^Error: Invalid configuration!/)
+})
+
+test('requires a query file in SQL mode', t => {
+  setInputs(t, {
+    sql_connstring: 'postgres://localhost/test',
+    downloaded_filename: 'data.csv',
   })
+  assert.throws(getConfig, /^Error: Invalid configuration!/)
 })
 
-it('throws an error for a faulty HTTP config', () => {
-  const config = {
-    http_url: 'https://google.com',
-    sql_queryfile: 'query.sql',
-    sql_format: 'json',
-  }
-  const coreMock = jest.spyOn(core, 'getInput')
-  // @ts-ignore
-  coreMock.mockImplementation(k => config[k])
-  expect(getConfig).toThrowError(/^Invalid configuration!/)
-})
-
-it('throws an error for a faulty SQL config', () => {
-  const config = {
-    sql_connstring: 'SECRETDATAHERE',
-    outfile_basename: 'data',
-    sql_queryfile: 'query.sql',
-  }
-  const coreMock = jest.spyOn(core, 'getInput')
-  // @ts-ignore
-  coreMock.mockImplementation(k => config[k])
-  expect(getConfig).toThrowError(/^Invalid configuration!/)
-})
-
-it('throws an error if neither HTTP nor SQL is configured', () => {
-  const config = {
-    outfile_basename: 'data',
-    sql_queryfile: 'query.sql',
-    sql_format: 'json',
-  }
-  const coreMock = jest.spyOn(core, 'getInput')
-  // @ts-ignore
-  coreMock.mockImplementation(k => config[k])
-  expect(getConfig).toThrowError(
-    'One of `http_url` or `sql_connstring` inputs are required.'
+test('requires an HTTP URL or SQL connection string', t => {
+  setInputs(t, { downloaded_filename: 'data.json' })
+  assert.throws(
+    getConfig,
+    /One of `http_url` or `sql_connstring` inputs are required/,
   )
 })
 
-it('prefers HTTP configs', () => {
-  const config = {
-    http_url: 'https://google.com',
-    sql_connstring: 'SECRETDATAHERE',
-    outfile_basename: 'data',
+test('prefers HTTP configs when both modes are supplied', t => {
+  setInputs(t, {
+    http_url: 'https://example.com/data',
+    sql_connstring: 'postgres://localhost/test',
+    downloaded_filename: 'data.json',
     sql_queryfile: 'query.sql',
-    sql_format: 'json',
-  }
-  const coreMock = jest.spyOn(core, 'getInput')
-  // @ts-ignore
-  coreMock.mockImplementation(k => config[k])
-  expect(getConfig()).toEqual({
-    http_url: 'https://google.com',
-    outfile_basename: 'data',
+  })
+  assert.deepEqual(getConfig(), {
+    http_url: 'https://example.com/data',
+    downloaded_filename: 'data.json',
   })
 })
 
-it('accepts a postprocess string', () => {
+test('preserves optional HTTP inputs', t => {
   const config = {
-    http_url: 'https://google.com',
-    outfile_basename: 'data',
-    sql_queryfile: 'query.sql',
-    sql_format: 'json',
+    http_url: 'https://example.com/data',
+    downloaded_filename: 'data.json',
     postprocess: 'path/to/script.ts',
+    axios_config: 'request.json',
+    authorization: 'Bearer test',
+    mask: 'true',
   }
-  const coreMock = jest.spyOn(core, 'getInput')
-  // @ts-ignore
-  coreMock.mockImplementation(k => config[k])
-  expect(getConfig()).toEqual({
-    http_url: config.http_url,
-    outfile_basename: config.outfile_basename,
-    postprocess: config.postprocess,
-  })
+  setInputs(t, config)
+  assert.deepEqual(getConfig(), config)
 })
 
-/*
-it('correctly identifies configs', () => {
-  const http: Config = {
-    http_url: 'https://google.com',
-    outfile_basename: 'data',
-    sql_queryfile: 'query.sql',
-    sql_format: 'json',
-    postprocess: 'path/to/script.ts',
+test('identifies HTTP and SQL configs', () => {
+  const http = {
+    http_url: 'https://example.com/data',
+    downloaded_filename: 'data.json',
   }
-  const sql: Config = {
-    sql_connstring: 'SECRETDATAHERE',
-    outfile_basename: 'data',
+  const sql = {
+    sql_connstring: 'postgres://localhost/test',
+    downloaded_filename: 'data.csv',
     sql_queryfile: 'query.sql',
-    sql_format: 'json',
   }
-  expect(isHTTPConfig(http)).toEqual(true)
-  expect(isHTTPConfig(sql)).toEqual(false)
-  expect(isSQLConfig(sql)).toEqual(true)
-  expect(isSQLConfig(http)).toEqual(false)
+  assert.equal(isHTTPConfig(http), true)
+  assert.equal(isHTTPConfig(sql), false)
+  assert.equal(isSQLConfig(sql), true)
+  assert.equal(isSQLConfig(http), false)
 })
-*/

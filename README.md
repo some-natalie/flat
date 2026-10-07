@@ -27,6 +27,10 @@ Check out our [example repositories](https://github.com/githubocto?q=flat-demo&t
 
 ## Usage
 
+Flat runs on Node.js 24. Self-hosted runners must support Node.js 24 and
+provide Node.js 24.11 or newer for the action runtime. Postprocessing requires
+Deno 2, which you can install with `denoland/setup-deno@v2`.
+
 ### Option 1: Flat Editor VSCode Extension
 
 The easiest way to get a Flat Data action up and running is with the accompanying [Flat Editor VSCode Extension](https://marketplace.visualstudio.com/items?itemName=GitHubOCTO.flat) which helps you author Flat yml files.
@@ -48,18 +52,21 @@ on:
   schedule:
     - cron: '*/30 * * * *'
 
+permissions:
+  contents: write
+
 jobs:
   scheduled:
     runs-on: ubuntu-latest
     steps:
-      # This step installs Deno, which is a new Javascript runtime that improves on Node. Can be used for an optional postprocessing step
+      # Install Deno only if you use the optional postprocess input
       - name: Setup deno
-        uses: denoland/setup-deno@main
+        uses: denoland/setup-deno@v2
         with:
-          deno-version: v1.10.x
+          deno-version: v2.x
       # Check out the repository so it can read the files inside of it and do other operations
       - name: Check out repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
       # The Flat Action step. We fetch the data in the http_url and save it as downloaded_filename
       - name: Fetch data
         uses: githubocto/flat@v3
@@ -177,7 +184,15 @@ In `sql` mode this should be one of `csv` or `json`. SQL query results will be s
 
 #### `typeorm_config` (optional)
 
-A JSON string representing a configuration passed to [TypeORMs createConnection function](https://orkhan.gitbook.io/typeorm/docs/connection-api#main-api).
+A JSON string representing [TypeORM DataSource options](https://typeorm.io/docs/data-source/data-source-options/).
+
+Flat includes drivers for PostgreSQL, MySQL/MariaDB, SQL Server, and SQLite.
+MySQL and MariaDB now use `mysql2`. SQLite uses the portable WebAssembly
+`sql.js` driver, so the bundled action does not depend on platform-specific
+native binaries. Existing `sqlite` connection strings and
+`typeorm_config: '{"type":"sqlite","database":"path/to/database.sqlite"}'`
+remain supported. SQLite databases are loaded into memory, so large databases
+require enough runner memory.
 
 A common use case for this value is connecting your [Flat action to a Heroku database](https://github.com/typeorm/typeorm/issues/278).
 
@@ -225,7 +240,7 @@ Deno's import-by-url model makes it easy to author lightweight scripts that can 
 
 ### How is my script invoked?
 
-The postprocessing script is invoked with `deno run -q -A --unstable {your script} {your fetched data file}`. Note that the `-A` grants your script full permissions to access network, disk — everything! Make sure you trust any dependencies you pull in, as they aren't restricted. We will likely revisit this in the future with another setting that specifies which permissions to grant deno.
+The postprocessing script is invoked with `deno run -q --allow-read --allow-write --allow-run --allow-net --allow-env --allow-import {your script} {your fetched data file}`. The script and filename are passed as separate arguments, including when they contain spaces. These permissions grant access to files, subprocesses, network requests, environment variables, and remote imports. Make sure you trust the script and its dependencies. The obsolete blanket `--unstable` flag is no longer used.
 
 ### How do I do ...?
 
@@ -233,8 +248,23 @@ The learn more about the possibilities for postprocessing check out our [helper 
 
 ## Building / Releasing
 
-1. `npm run dist` and commit the built output (yes, you read that right)
-2. Bump whatever you want to bump in the `package.json` version field
+Use the Node.js version in `.node-version` (also configured for Volta), then run:
+
+```sh
+npm ci
+npm run format:check
+npm test
+npm run dist
+npm run test:bundle
+```
+
+Tests use Node.js's built-in test runner and cover configuration, HTTP downloads,
+SQLite queries, and Deno invocation. Bundle smoke tests run the generated action
+without `node_modules` and without committing or pushing. CI runs these checks
+and builds the action on Linux, macOS, and Windows.
+
+1. Bump the release version with `npm version VERSION --no-git-tag-version`.
+2. Run `npm run dist` and commit the updated manifests and built output. The build replaces `dist` to remove obsolete bundled assets.
 3. Merge `main` into `vMAJOR` branch. `git checkout vMAJOR && git merge main`
 
 - If this is a new major version, create the branch. `git checkout -b vMAJOR`

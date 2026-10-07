@@ -46,26 +46,26 @@ async function getHeadSize(path: string): Promise<number | undefined> {
   }
 }
 
-async function diffSize(file: GitStatus): Promise<number> {  
-  switch (file.flag) {    
+async function diffSize(file: GitStatus): Promise<number> {
+  switch (file.flag) {
     case 'M': {
       const stat = statSync(file.path)
       core.debug(
-        `Calculating diff for ${JSON.stringify(file)}, with size ${stat.size}b`
+        `Calculating diff for ${JSON.stringify(file)}, with size ${stat.size}b`,
       )
 
       // get old size and compare
       const oldSize = await getHeadSize(file.path)
       const delta = oldSize === undefined ? stat.size : stat.size - oldSize
       core.debug(
-        ` ==> ${file.path} modified: old ${oldSize}, new ${stat.size}, delta ${delta}b `
+        ` ==> ${file.path} modified: old ${oldSize}, new ${stat.size}, delta ${delta}b `,
       )
       return delta
     }
     case 'A': {
       const stat = statSync(file.path)
       core.debug(
-        `Calculating diff for ${JSON.stringify(file)}, with size ${stat.size}b`
+        `Calculating diff for ${JSON.stringify(file)}, with size ${stat.size}b`,
       )
 
       core.debug(` ==> ${file.path} added: delta ${stat.size}b`)
@@ -79,7 +79,7 @@ async function diffSize(file: GitStatus): Promise<number> {
     }
     default: {
       throw new Error(
-        `Encountered an unexpected file status in git: ${file.flag} ${file.path}`
+        `Encountered an unexpected file status in git: ${file.flag} ${file.path}`,
       )
     }
   }
@@ -88,7 +88,7 @@ async function diffSize(file: GitStatus): Promise<number> {
 export async function diff(filename: string): Promise<number> {
   const statuses = await gitStatus()
   core.debug(
-    `Parsed statuses: ${statuses.map(s => JSON.stringify(s)).join(', ')}`
+    `Parsed statuses: ${statuses.map(s => JSON.stringify(s)).join(', ')}`,
   )
   const status = statuses.find(s => path.relative(s.path, filename) === '')
   if (typeof status === 'undefined') {
@@ -97,4 +97,3 @@ export async function diff(filename: string): Promise<number> {
   }
   return await diffSize(status)
 }
-

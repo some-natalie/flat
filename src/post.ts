@@ -19,7 +19,7 @@ const run = async () => {
       files,
     },
     undefined,
-    2
+    2,
   )
   const msg = `Flat: latest data (${date})`
 

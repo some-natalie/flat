@@ -1,9 +1,24 @@
 import * as core from '@actions/core'
 import { ConnectionString } from 'connection-string'
 import { createWriteStream, readFileSync, writeFileSync } from 'fs'
-import { createConnection, DatabaseType } from 'typeorm'
-import { SQLConfig } from '../config'
-import stringify from 'csv-stringify'
+import { DataSource, DataSourceOptions, DatabaseType } from 'typeorm'
+import { SQLConfig } from '../config.js'
+import { stringify } from 'csv-stringify'
+import { pipeline } from 'stream/promises'
+import mssql from 'mssql'
+import mysql from 'mysql2'
+import pg from 'pg'
+import initSqlJs from 'sql.js/dist/sql-wasm-browser.js'
+
+// Explicit imports keep TypeORM's dynamically loaded drivers in the action bundle.
+const DRIVERS: Partial<Record<DatabaseType, unknown>> = {
+  mysql,
+  mariadb: mysql,
+  postgres: pg,
+  cockroachdb: pg,
+  mssql,
+  sqljs: initSqlJs,
+}
 
 // TODO: wish there was a dynamic way to import this for runtime usage from the DatabaseType type
 const TYPEORM_PROTOCOLS = [
@@ -12,7 +27,6 @@ const TYPEORM_PROTOCOLS = [
   'cockroachdb',
   'sap',
   'mariadb',
-  'sqlite',
   'cordova',
   'react-native',
   'nativescript',
@@ -20,19 +34,27 @@ const TYPEORM_PROTOCOLS = [
   'oracle',
   'mssql',
   'mongodb',
-  'aurora-data-api',
-  'aurora-data-api-pg',
+  'aurora-mysql',
+  'aurora-postgres',
   'expo',
   'better-sqlite3',
-]
+  'capacitor',
+  'spanner',
+] satisfies DatabaseType[]
+
+const PROTOCOL_ALIASES: Record<string, DatabaseType> = {
+  sqlite: 'sqljs',
+  'aurora-data-api': 'aurora-mysql',
+  'aurora-data-api-pg': 'aurora-postgres',
+}
 
 function isValidDatabaseType(protocol: string): protocol is DatabaseType {
-  return TYPEORM_PROTOCOLS.includes(protocol)
+  return (TYPEORM_PROTOCOLS as readonly string[]).includes(protocol)
 }
 
 export default async function fetchSQL(config: SQLConfig): Promise<string> {
   core.info('Fetching: SQL')
-  let connection
+  let connection: DataSource
   let query
 
   core.debug('Reading query file')
@@ -41,7 +63,7 @@ export default async function fetchSQL(config: SQLConfig): Promise<string> {
     query = readFileSync(config.sql_queryfile, { encoding: 'utf8' })
   } catch (error) {
     core.setFailed(
-      `Unable to read queryfile ${config.sql_queryfile}: ${error.message}`
+      `Unable to read queryfile ${config.sql_queryfile}: ${error instanceof Error ? error.message : String(error)}`,
     )
     throw error
   }
@@ -49,40 +71,83 @@ export default async function fetchSQL(config: SQLConfig): Promise<string> {
   core.debug('Connecting to database')
   const parsed = new ConnectionString(config.sql_connstring)
   try {
-    const protocol = parsed.protocol
+    const rawProtocol = parsed.protocol
+    const protocol = rawProtocol
+      ? PROTOCOL_ALIASES[rawProtocol] || rawProtocol
+      : undefined
     if (!protocol) {
       throw new Error(
-        'Unable to determine the database protocol from the connection string'
+        'Unable to determine the database protocol from the connection string',
       )
     }
     if (!isValidDatabaseType(protocol)) {
       throw new Error(
         `The '${protocol}' protocol is not supported. Please choose one of: ${TYPEORM_PROTOCOLS.join(
-          ', '
-        )}`
+          ', ',
+        )}`,
       )
     }
 
-    let userProvidedConfiguration = {}
+    let userProvidedConfiguration: Record<string, unknown> = {}
 
     try {
-      userProvidedConfiguration = config.typeorm_config
+      const configuration = config.typeorm_config
         ? JSON.parse(config.typeorm_config)
         : {}
+      if (
+        !configuration ||
+        typeof configuration !== 'object' ||
+        Array.isArray(configuration)
+      ) {
+        throw new Error('TypeORM configuration must be a JSON object')
+      }
+      userProvidedConfiguration = configuration
     } catch (error) {
-      core.setFailed(
-        'Failed to parse JSON string containing TypeORM configuration for createConnection function'
+      throw new Error(
+        'Failed to parse JSON string containing TypeORM DataSource options',
+        { cause: error },
       )
     }
 
-    // @ts-ignore
-    connection = await createConnection({
-      type: protocol,
+    const options = {
       url: config.sql_connstring,
       ...userProvidedConfiguration,
-    })
+      type: (userProvidedConfiguration.type ?? protocol) as
+        DatabaseType | 'sqlite',
+      driver:
+        userProvidedConfiguration.driver ??
+        DRIVERS[
+          (userProvidedConfiguration.type === 'sqlite'
+            ? 'sqljs'
+            : (userProvidedConfiguration.type ?? protocol)) as DatabaseType
+        ],
+    }
+    if (options.type === 'sqlite' || options.type === 'sqljs') {
+      const database = userProvidedConfiguration.database
+      connection = new DataSource({
+        ...options,
+        type: 'sqljs',
+        ...(typeof database === 'string'
+          ? { database: undefined, location: database, autoSave: true }
+          : {}),
+        sqlJsConfig: {
+          wasmBinary: readFileSync(
+            new URL(
+              '../../node_modules/sql.js/dist/sql-wasm.wasm',
+              import.meta.url,
+            ),
+          ),
+          ...(userProvidedConfiguration.sqlJsConfig as object),
+        },
+      } as DataSourceOptions)
+    } else {
+      connection = new DataSource(options as DataSourceOptions)
+    }
+    await connection.initialize()
   } catch (error) {
-    core.setFailed(`Unable to connect to database: ${error.message}`)
+    core.setFailed(
+      `Unable to connect to database: ${error instanceof Error ? error.message : String(error)}`,
+    )
     throw error
   }
 
@@ -91,16 +156,13 @@ export default async function fetchSQL(config: SQLConfig): Promise<string> {
   try {
     result = await connection.query(query)
   } catch (error) {
-    core.setFailed(`Unable to query database: ${error.message}`)
+    core.setFailed(
+      `Unable to query database: ${error instanceof Error ? error.message : String(error)}`,
+    )
     throw error
-  }
-
-  core.info('Closing database')
-  try {
-    await connection.close()
-  } catch (error) {
-    core.setFailed(`Unable to close database: ${error.message}`)
-    throw error
+  } finally {
+    core.info('Closing database')
+    await connection.destroy()
   }
 
   const outfile = `${config.downloaded_filename}`
@@ -110,22 +172,18 @@ export default async function fetchSQL(config: SQLConfig): Promise<string> {
       case 'csv':
         core.info('Writing CSV')
         const writer = createWriteStream(outfile, { encoding: 'utf8' })
-        stringify(result, {
-          header: true,
-        }).pipe(writer)
-        await new Promise((resolve, reject) => {
-          writer.on('finish', resolve)
-          writer.on('error', reject)
-        })
+        await pipeline(stringify(result, { header: true }), writer)
         break
 
       default:
         core.info('Writing JSON')
-        await writeFileSync(outfile, JSON.stringify(result))
+        writeFileSync(outfile, JSON.stringify(result))
     }
     return outfile
   } catch (error) {
-    core.setFailed(`Unable to write results to ${outfile}: ${error.message}`)
+    core.setFailed(
+      `Unable to write results to ${outfile}: ${error instanceof Error ? error.message : String(error)}`,
+    )
     throw error
   }
 }

@@ -269,6 +269,20 @@ formatter in `vendor/tedious-formatter`, using a scoped npm override. The tests
 verify compatibility with the installed SQL Server driver. Remove the override
 when an upstream release fixes or removes that dependency.
 
+### CodeQL
+
+CodeQL scans JavaScript/TypeScript and GitHub Actions workflows on pushes to
+`main`, pull requests targeting `main`, manual runs, and Mondays at 04:31 UTC.
+Both scans use the `security-extended` query suite. Source code, build scripts,
+tests, and the handwritten formatter are included; generated bundles, compiled
+output, dependencies, and coverage are excluded.
+
+Results appear in the repository's **Security → Code scanning** page. The workflow
+uses advanced setup, so leave CodeQL default setup disabled. For a fork, enable
+GitHub Actions if workflows have not been enabled yet.
+
+### Releasing
+
 1. Bump the release version with `npm version VERSION --no-git-tag-version`.
 2. Run `npm run dist` and commit the updated manifests and built output. The build replaces `dist` to remove obsolete bundled assets.
 3. Merge `main` into `vMAJOR` branch. `git checkout vMAJOR && git merge main`

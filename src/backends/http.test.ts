@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { createServer, RequestListener } from 'node:http'
 import { AddressInfo } from 'node:net'
 import path from 'node:path'
@@ -42,37 +42,22 @@ test('downloads binary data with an authorization header', async t => {
   assert.deepEqual(readFileSync(downloaded_filename), bytes)
 })
 
-test('merges Axios options but keeps the action URL and authorization', async t => {
+test('downloads with GET and no authorization or request body by default', async t => {
   const http_url = await serve(t, (request, response) => {
-    assert.equal(request.method, 'POST')
-    assert.equal(request.headers.authorization, 'Bearer test')
-    assert.equal(request.headers['x-test'], 'custom')
+    assert.equal(request.method, 'GET')
+    assert.equal(request.headers.authorization, undefined)
     let body = ''
     request.on('data', chunk => (body += chunk))
     request.on('end', () => {
-      assert.deepEqual(JSON.parse(body), { query: 'test' })
+      assert.equal(body, '')
       response.end('result')
     })
   })
   const directory = tempDirectory(t)
-  const axios_config = path.join(directory, 'request.json')
   const downloaded_filename = path.join(directory, 'data.txt')
-  writeFileSync(
-    axios_config,
-    JSON.stringify({
-      method: 'post',
-      url: 'http://invalid.example',
-      baseURL: 'http://invalid.example',
-      headers: { authorization: 'ignored', 'x-test': 'custom' },
-      data: { query: 'test' },
-      responseType: 'json',
-    }),
-  )
   await fetchHTTP({
     http_url,
     downloaded_filename,
-    axios_config,
-    authorization: 'Bearer test',
   })
   assert.equal(readFileSync(downloaded_filename, 'utf8'), 'result')
 })
@@ -101,19 +86,5 @@ test('rejects interrupted response streams', async t => {
       http_url,
       downloaded_filename: path.join(tempDirectory(t), 'data.txt'),
     }),
-  )
-})
-
-test('rejects invalid Axios JSON', async t => {
-  const directory = tempDirectory(t)
-  const axios_config = path.join(directory, 'request.json')
-  writeFileSync(axios_config, '{invalid')
-  await assert.rejects(
-    fetchHTTP({
-      http_url: 'http://127.0.0.1',
-      downloaded_filename: path.join(directory, 'data.txt'),
-      axios_config,
-    }),
-    SyntaxError,
   )
 })

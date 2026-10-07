@@ -12,7 +12,6 @@ export type CommonConfig = z.infer<typeof CommonConfigSchema>
 
 const HTTPConfigSchema = z
   .object({
-    axios_config: z.string().optional(),
     http_url: z.string(),
     authorization: z.string().optional(),
     mask: z.string().optional(), // string array of secrets or boolean
@@ -33,9 +32,14 @@ const ConfigSchema = z.union([HTTPConfigSchema, SQLConfigSchema])
 export type Config = z.infer<typeof ConfigSchema>
 
 export function getConfig(): Config {
+  if (core.getInput('axios_config')) {
+    throw new Error(
+      'The axios_config input is no longer supported. HTTP mode only supports GET requests and the authorization input.',
+    )
+  }
+
   const raw: { [k: string]: string } = {}
   const keys = [
-    'axios_config',
     'downloaded_filename',
     'http_url',
     'authorization',

@@ -65,12 +65,20 @@ test('preserves optional HTTP inputs', t => {
     http_url: 'https://example.com/data',
     downloaded_filename: 'data.json',
     postprocess: 'path/to/script.ts',
-    axios_config: 'request.json',
     authorization: 'Bearer test',
     mask: 'true',
   }
   setInputs(t, config)
   assert.deepEqual(getConfig(), config)
+})
+
+test('rejects the removed Axios file input with migration guidance', t => {
+  setInputs(t, {
+    http_url: 'https://example.com/data',
+    downloaded_filename: 'data.json',
+    axios_config: 'request.json',
+  })
+  assert.throws(getConfig, /axios_config input is no longer supported/)
 })
 
 test('identifies HTTP and SQL configs', () => {

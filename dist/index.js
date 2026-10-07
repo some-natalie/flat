@@ -237243,34 +237243,11 @@ async function fetchHTTP(config) {
         authorization: config.authorization,
     };
     const authHeader = config.authorization ? auth : {};
-    let response;
     try {
-        if (config.axios_config) {
-            const axiosConfig = external_fs_.readFileSync(config.axios_config, {
-                encoding: 'utf8',
-            });
-            const parsed = JSON.parse(axiosConfig);
-            const combinedWithOtherConfigValues = {
-                ...parsed,
-                url: config.http_url,
-                baseURL: undefined,
-                headers: {
-                    ...parsed.headers,
-                    ...authHeader,
-                },
-                responseType: 'stream',
-            };
-            response = await lib_axios(combinedWithOtherConfigValues);
-        }
-        else {
-            response = await lib_axios.get(config.http_url, {
-                method: 'get',
-                responseType: 'stream',
-                headers: {
-                    ...authHeader,
-                },
-            });
-        }
+        const response = await lib_axios.get(config.http_url, {
+            responseType: 'stream',
+            headers: authHeader,
+        });
         const filename = config.downloaded_filename;
         const writer = external_fs_.createWriteStream(filename);
         await (0,promises_namespaceObject.pipeline)(response.data, writer);
@@ -248102,7 +248079,6 @@ const CommonConfigSchema = object({
     postprocess: schemas_string().optional(),
 });
 const HTTPConfigSchema = object({
-    axios_config: schemas_string().optional(),
     http_url: schemas_string(),
     authorization: schemas_string().optional(),
     mask: schemas_string().optional(), // string array of secrets or boolean
@@ -248116,9 +248092,11 @@ const SQLConfigSchema = object({
     .extend(CommonConfigSchema.shape);
 const ConfigSchema = union([HTTPConfigSchema, SQLConfigSchema]);
 function getConfig() {
+    if (getInput('axios_config')) {
+        throw new Error('The axios_config input is no longer supported. HTTP mode only supports GET requests and the authorization input.');
+    }
     const raw = {};
     const keys = [
-        'axios_config',
         'downloaded_filename',
         'http_url',
         'authorization',

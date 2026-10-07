@@ -7,6 +7,7 @@ const { sprintf } = require('./index.cjs')
 
 const requireTedious = createRequire(require.resolve('tedious'))
 const tediousRoot = path.dirname(require.resolve('tedious'))
+const supportedFormat = /^(?:[^%]|%%|%\d*[sdxX])*$/
 
 test('Tedious resolves the scoped formatter replacement', () => {
   assert.equal(requireTedious('sprintf-js').sprintf, sprintf)
@@ -86,6 +87,15 @@ test('preserves invalid SQL Server metadata errors', () => {
   )
 })
 
+test('format validation rejects long malformed inputs without ambiguous matching', () => {
+  for (const format of ['', '%%', '%s %d %02X', '%004X']) {
+    assert.match(format, supportedFormat)
+  }
+  for (const format of ['%', '%f', '%.101f', '%' + '09X%'.repeat(10000)]) {
+    assert.doesNotMatch(format, supportedFormat)
+  }
+})
+
 test('all installed Tedious format strings stay within the supported subset', () => {
   let count = 0
   for (const name of fs.readdirSync(tediousRoot, { recursive: true })) {
@@ -96,11 +106,7 @@ test('all installed Tedious format strings stay within the supported subset', ()
       /_sprintfJs\.sprintf\)\(\s*(['"])(.*?)\1/g,
     )) {
       const format = match[2]
-      assert.match(
-        format,
-        /^(?:[^%]|%%|%(?:0?\d+)?[sdxX])*$/,
-        `${name}: ${format}`,
-      )
+      assert.match(format, supportedFormat, `${name}: ${format}`)
       for (const placeholder of format.matchAll(/%(?:0)?(\d+)[sdxX]/g)) {
         assert.ok(Number(placeholder[1]) <= 32, `${name}: ${format}`)
       }

@@ -108,29 +108,17 @@ For example, if this field is set to `Bearer abc123` then the following header i
 }
 ```
 
-#### `axios_config` (optional)
+#### HTTP request compatibility
 
-Under the hood, the `http` backend uses [Axios](https://github.com/axios/axios) for data fetching. By default, Flat assumes you're interested in using the `GET` method to fetch data, but if you'd like to `POST` (e.g., sending a GraphQL query), the `axios_config` option allows you to override this behavior.
+The file-based `axios_config` input has been removed. Flat no longer reads local
+request configuration or sends file contents as HTTP headers or request bodies.
+HTTP mode now supports only GET requests to `http_url`, with the optional
+`authorization` header.
 
-Specifically, the `axios_config` parameter should reflect a relative path to a `.json` file in your repository. This JSON file should mirror the shape of [Axios' request config parameters](https://github.com/axios/axios#request-config), with a few notable exceptions.
-
-- `url` and `baseURL` will both be ignored, as the `http_url` specified above will take precedence.
-- `headers` will be merged in with the authorization header described by the `authorization` parameter above. Please do not put secret keys here, as they will be stored in plain text!
-- All `function` parameters will be ignored (e.g., `transformRequest`).
-- The response type is always set to `responseType: 'stream'` in the background.
-
-An example `axios_config` might look thusly if you were interested in hitting GitHub's GraphQL API ([here is a demo](https://github.com/githubocto/flat-demo-graphql)) 👇
-
-```json
-{
-  "method": "post",
-  "data": {
-    "query": "query { repository(owner:\"octocat\", name:\"Hello-World\") { issues(last:20, states:CLOSED) { edges { node { title url labels(first:5) { edges { node { name } } } } } } } }"
-  }
-}
-```
-
-We advise escaping double quotes like `\"` in your JSON file.
+Remove `axios_config` from existing workflows. Workflows that still supply it fail
+with a migration error rather than silently changing a POST request to GET. If you
+need POST requests, GraphQL, or custom headers, use a separate workflow step to
+fetch the data.
 
 #### `downloaded_filename`
 

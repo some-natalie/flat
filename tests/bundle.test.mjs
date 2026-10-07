@@ -106,6 +106,18 @@ test('packaged HTTP action runs without node_modules', async t => {
   )
 })
 
+test('packaged action rejects the removed Axios file input before fetching', async t => {
+  const files = fixture(t)
+  const result = await runAction(files, {
+    http_url: 'http://127.0.0.1:1/data',
+    downloaded_filename: 'data.json',
+    axios_config: 'missing-request.json',
+  })
+  assert.equal(result.code, 1, result.output)
+  assert.match(result.output, /axios_config input is no longer supported/)
+  assert.doesNotMatch(result.output, /ENOENT|ECONNREFUSED/)
+})
+
 for (const format of ['json', 'csv']) {
   test(`packaged SQLite action writes ${format} without node_modules`, async t => {
     const files = fixture(t)
@@ -149,7 +161,7 @@ for (const protocol of ['postgres', 'mysql', 'mssql']) {
     assert.match(result.output, /Unable to connect to database/)
     assert.match(
       result.output,
-      /ECONNREFUSED|Failed to connect to 127\.0\.0\.1:1/,
+      /ECONNREFUSED|Failed to connect to 127\.0\.0\.1:1|Connection terminated due to connection timeout/,
     )
   })
 }

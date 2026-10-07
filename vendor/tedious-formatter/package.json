@@ -1,0 +1,9 @@
+{
+  "name": "@flat/tedious-formatter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bounded formatter for Tedious diagnostics",
+  "type": "commonjs",
+  "main": "index.cjs",
+  "license": "MIT"
+}

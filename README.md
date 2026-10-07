@@ -252,6 +252,7 @@ Use the Node.js version in `.node-version` (also configured for Volta), then run
 
 ```sh
 npm ci
+npm audit
 npm run format:check
 npm test
 npm run dist
@@ -262,6 +263,11 @@ Tests use Node.js's built-in test runner and cover configuration, HTTP downloads
 SQLite queries, and Deno invocation. Bundle smoke tests run the generated action
 without `node_modules` and without committing or pushing. CI runs these checks
 and builds the action on Linux, macOS, and Windows.
+
+Tedious's vulnerable `sprintf-js` dependency is replaced by a bounded diagnostic
+formatter in `vendor/tedious-formatter`, using a scoped npm override. The tests
+verify compatibility with the installed SQL Server driver. Remove the override
+when an upstream release fixes or removes that dependency.
 
 1. Bump the release version with `npm version VERSION --no-git-tag-version`.
 2. Run `npm run dist` and commit the updated manifests and built output. The build replaces `dist` to remove obsolete bundled assets.

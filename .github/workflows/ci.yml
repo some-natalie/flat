@@ -20,6 +20,7 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
+      - run: npm audit
       - run: npm run format:check
       - run: npm test
       - run: npm run dist

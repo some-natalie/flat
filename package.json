@@ -9,9 +9,9 @@
     "package": "ncc build --source-map --license LICENSE --target es2023 lib/main.js",
     "package-post": "ncc build --target es2023 lib/post.js -o dist/post",
     "dist": "npm run build && node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && npm run package && npm run package-post && node scripts/licenses.mjs",
-    "format": "prettier --write \"src/**/*.ts\" \"scripts/*.mjs\" \"tests/*.mjs\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"scripts/*.mjs\" \"tests/*.mjs\"",
-    "test": "npm run build && node --test lib/*.test.js lib/backends/*.test.js",
+    "format": "prettier --write \"src/**/*.ts\" \"scripts/*.mjs\" \"tests/*.mjs\" \"vendor/**/*.cjs\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"scripts/*.mjs\" \"tests/*.mjs\" \"vendor/**/*.cjs\"",
+    "test": "npm run build && node --test lib/*.test.js lib/backends/*.test.js vendor/**/*.test.cjs",
     "test:bundle": "node --test tests/bundle.test.mjs",
     "prepare": "husky"
   },
@@ -35,6 +35,8 @@
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "sql.js": "^1.14.2",
+    "sprintf-js": "file:vendor/tedious-formatter",
+    "tedious": "^20.3.5",
     "typeorm": "^1.1.1",
     "zod": "^4.6.5"
   },
@@ -47,6 +49,11 @@
     "husky": "^9.1.7",
     "prettier": "^3.9.9",
     "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "tedious": {
+      "sprintf-js": "$sprintf-js"
+    }
   },
   "engines": {
     "node": ">=24.11.0"

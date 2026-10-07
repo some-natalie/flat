@@ -163,6 +163,7 @@ test('bundle includes production dependency license notices', () => {
   const licenses = readFileSync(path.join(dist, 'LICENSE'), 'utf8')
   for (const dependency of [
     '@actions/core',
+    '@flat/tedious-formatter',
     'mysql2',
     'mssql',
     'pg',
@@ -170,4 +171,10 @@ test('bundle includes production dependency license notices', () => {
   ]) {
     assert.ok(licenses.includes(`${dependency}@`), dependency)
   }
+})
+
+test('bundle excludes the vulnerable sprintf-js implementation', () => {
+  const bundle = readFileSync(path.join(dist, 'index.js'), 'utf8')
+  assert.match(bundle, /Only Tedious's fixed diagnostic formats are supported/)
+  assert.doesNotMatch(bundle, /function sprintf_parse|function sprintf_format/)
 })
